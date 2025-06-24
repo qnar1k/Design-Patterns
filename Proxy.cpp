@@ -1,53 +1,61 @@
 #include <iostream>
+#include <memory>
 using namespace std;
 
-class Image {
-    string fileName;
-    void loadFromDisk() {
-        cout << "Loading from disk " << fileName << endl;
-    }
+// Interface all payment methods implement
+class IPayment {
 public:
-    Image(string name) : fileName(name) {
-        loadFromDisk();
+    virtual void pay(int amount) = 0;
+    virtual ~IPayment() = default;
+};
+
+// Real object: resource-heavy bank account
+class BankAccount : public IPayment {
+private:
+    int balance;
+public:
+    BankAccount(int initialBalance) : balance(initialBalance) {
+        cout << "[BankAccount] Created with balance: " << balance << "\n";
     }
-    void display() {
-        cout << "Displaying image";
+
+    void pay(int amount) override {
+        if (amount > balance) {
+            cout << "[BankAccount] Insufficient funds for payment of " << amount << "\n";
+        }
+        else {
+            balance -= amount;
+            cout << "[BankAccount] Payment of " << amount << " processed. New balance: " << balance << "\n";
+        }
     }
 };
-class ImageProxy {
-    string fileName;
-    Image* realImage = nullptr;
-    bool hasAccess;
+
+// Proxy object: adds logging and lazy initialization
+class CreditCard : public IPayment {
+private:
+    unique_ptr<BankAccount> realAccount;
+    int initialBalance;
 public:
-    ImageProxy(string name, bool access) : fileName(name), hasAccess(access){}
-    ~ImageProxy()
-    {
-        delete realImage;
-    }
-    void display() {
-        if (!hasAccess) {
-            cout << "Access denied to image: " << fileName << endl;
-            return;
+    CreditCard(int initialBalance) : initialBalance(initialBalance) {}
+
+    void pay(int amount) override {
+        cout << "[CreditCard] Requesting payment of " << amount << "\n";
+
+        if (!realAccount) {
+            cout << "[CreditCard] Lazy initializing BankAccount...\n";
+            realAccount = make_unique<BankAccount>(initialBalance);
         }
-        if (realImage == nullptr) {
-            cout << "Lazy loading image...\n";
-            realImage = new Image(fileName);
-        }
-        realImage->display();   
+
+        realAccount->pay(amount);
     }
 };
-int main()
-{
-    ImageProxy img1("photo1.jpg", true);  // User has access
-    ImageProxy img2("secret_photo.jpg", false);  // User denied
 
-    cout << "Trying to display img1:\n";
-    img1.display();  // Loads and displays
+int main() {
+    // Client uses proxy (CreditCard), not direct BankAccount
+    CreditCard card(1000); // Proxy created, but not the BankAccount yet
 
-    cout << "\nTrying to display img1 again:\n";
-    img1.display();  // Just displays, no reload
+    card.pay(300); // First call creates BankAccount lazily
+    card.pay(500); // Uses existing BankAccount
+    card.pay(300); // Insufficient funds example
 
-    cout << "\nTrying to display img2:\n";
-    img2.display();  // Access denied
+    return 0;
 }
-
